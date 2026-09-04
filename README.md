@@ -1,53 +1,186 @@
-# 🚚 Deploy di un modello predittivo per la stima dei tempi di consegna
+# LogiFast Delivery Time Prediction API
 
-## 📋 Descrizione
+API REST in Flask per la stima del tempo di consegna (time-to-delivery) degli ordini di LogiFast Solutions, dal ritiro alla consegna finale.
 
-**LogiFast Solutions** è un'azienda che gestisce consegne urbane e interurbane per e-commerce e rivenditori.
+## Indice
 
-Il progetto implementa una soluzione di **Machine Learning per la previsione del tempo di consegna di un ordine**, dal momento della presa in carico fino alla consegna finale.
+- [Descrizione](#descrizione)
+- [Struttura del progetto](#struttura-del-progetto)
+- [Avvio in locale](#avvio-in-locale)
+- [Avvio con Docker](#avvio-con-docker)
+- [Documentazione API](#documentazione-api)
+- [Test di integrazione](#test-di-integrazione)
+- [Note su versionamento e monitoraggio](#note-su-versionamento-e-monitoraggio)
 
-Il modello predittivo viene esposto tramite una **API REST sviluppata con Flask**, consentendo a sistemi esterni, operatori e applicazioni aziendali di ottenere previsioni in tempo reale.
+## Descrizione
 
-Il progetto integra inoltre principi fondamentali di **MLOps**, con particolare attenzione a:
+Il servizio espone un modello di machine learning (`model/delivery.pkl`) che predice il tempo di consegna di un ordine a partire da:
 
-- versionamento di modello e dataset;
-- tracciamento dei metadati di training;
-- testing e validazione;
-- monitoraggio delle predizioni;
-- rilevazione del data/concept drift;
-- alerting;
-- strategie di rollback;
-- pianificazione del retraining.
+- luogo di ritiro
+- luogo di consegna
+- data/ora di ritiro
+- peso del pacco
+- tipo di servizio (`Express` / `Premium`)
 
-L'obiettivo è simulare un flusso realistico di **Machine Learning in produzione**, mantenendo l'implementazione focalizzata sugli aspetti richiesti dal progetto senza introdurre un'infrastruttura MLOps completa.
+## Struttura del progetto
 
----
+```
+.
+├── main.py                # Applicazione Flask
+├── DTO.py                 # Modelli Pydantic (request/response)
+├── model/
+│   └── delivery.pkl       # Modello serializzato
+├── tests/
+│   └── test_api.py        # Test di integrazione
+├── requirements.txt
+├── Dockerfile
+├── .dockerignore
+└── README.md
+```
 
-## 🎯 Obiettivi
+## Avvio in locale
 
-Gli obiettivi principali del progetto sono:
+Requisiti: Python 3.11+
 
-1. Analizzare e validare il modello predittivo fornito.
-2. Definire una metodologia di valutazione delle performance.
-3. Implementare un'API REST con Flask.
-4. Esporre endpoint per predizioni singole e batch.
-5. Implementare endpoint di health check e informazioni sul modello.
-6. Definire una strategia di versionamento per modello e dataset.
-7. Progettare un workflow MLOps per training, testing e deployment.
-8. Definire un sistema di monitoraggio delle performance e del drift.
-9. Definire strategie di rollback e retraining.
-10. Documentare architettura, API, metriche e modalità di utilizzo.
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # Linux/Mac
 
----
+pip install -r requirements.txt
+python main.py
+```
 
-## 🧠 Modello di Machine Learning
+Il servizio sarà disponibile su `http://localhost:8000`.
 
-Il modello predittivo è fornito in formato **Pickle (`.pkl`)**.
+## Avvio con Docker
 
-Il file può essere scaricato dal repository del progetto e caricato tramite Python:
+```bash
+docker build -t logifast-delivery-api .
+docker run -p 8000:8000 logifast-delivery-api
+```
 
-```python
-import pickle
+Verifica che il container sia in esecuzione e con la porta mappata correttamente:
 
-with open("delivery.pkl", "rb") as f:
-    model = pickle.load(f)
+```bash
+docker ps
+```
+
+Nella colonna `PORTS` deve comparire `0.0.0.0:8000->8000/tcp`.
+
+## Documentazione API
+
+### `GET /health`
+
+Stato operativo del servizio.
+
+**Risposta 200:**
+```json
+{
+  "status": "OK",
+  "timestamp": "2026-09-04T10:00:00.000000"
+}
+```
+
+### `GET /model/info`
+
+Versione e metadati del modello caricato.
+
+**Risposta 200:**
+```json
+{
+  "model_version": "1.0.0",
+  "trained_on": "2026-01-15",
+  "sklearn_version": "1.6.1",
+  "features": ["pickup_location", "delivery_location", "pickup_datetime", "weight", "service_type"]
+}
+```
+
+### `POST /predict`
+
+Predizione per un singolo ordine.
+
+**Request body:**
+```json
+{
+  "pickuplocation": "Milano",
+  "deliverylocation": "Roma",
+  "pickupdatetime": "2026-09-03T10:00:00",
+  "weight": 5.5,
+  "servicetype": "Express"
+}
+```
+
+**Risposta 200:**
+```json
+{
+  "prediction": {
+    "predicted_probability": 132.5
+  },
+  "status": "success",
+  "timestamp": "2026-09-04T10:00:00.000000"
+}
+```
+
+### `POST /predict/batch`
+
+Predizione per una lista di ordini.
+
+**Request body:**
+```json
+[
+  {
+    "pickuplocation": "Milano",
+    "deliverylocation": "Roma",
+    "pickupdatetime": "2026-09-03T10:00:00",
+    "weight": 5.5,
+    "servicetype": "Express"
+  },
+  {
+    "pickuplocation": "Torino",
+    "deliverylocation": "Napoli",
+    "pickupdatetime": "2026-09-04T14:30:00",
+    "weight": 12.0,
+    "servicetype": "Premium"
+  }
+]
+```
+
+**Risposta 200:**
+```json
+{
+  "predictions": [
+    { "prediction": { "predicted_probability": 132.5 }, "status": "success" },
+    { "prediction": { "predicted_probability": 210.0 }, "status": "success" }
+  ],
+  "timestamp": "2026-09-04T10:00:00.000000"
+}
+```
+
+## Test di integrazione
+
+I test si trovano in `tests/test_api.py` e verificano che gli endpoint rispondano correttamente. Richiedono che il servizio sia già attivo (locale o via Docker) su `http://localhost:8000`.
+
+Installazione dipendenza di test:
+
+```bash
+pip install pytest requests
+```
+
+Esecuzione:
+
+```bash
+pytest tests/test_api.py -v
+```
+
+Oppure, senza pytest, come script standalone:
+
+```bash
+python tests/test_api.py
+```
+
+## Note su versionamento e monitoraggio
+
+- La versione del modello è esposta tramite `GET /model/info` ed è tracciata manualmente nella costante `MODEL_VERSION` in `main.py`.
+- Le richieste e le predizioni vengono loggate su file (`predictions.log`) oltre che su console, per supportare attività di monitoraggio e audit.
+- Per la strategia completa di versionamento, automazione, monitoraggio e governance, vedere il documento `docs/mlops-strategy.md` (o equivalente) allegato alla consegna del progetto.

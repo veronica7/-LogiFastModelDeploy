@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+predictions.log
+*.ipynb_checkpoints
