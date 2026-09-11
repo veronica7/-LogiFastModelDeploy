@@ -37,6 +37,81 @@ VALID_BATCH_PAYLOAD = [
     },
 ]
  
+INVALID_BATCH_PAYLOAD = [
+    {
+        "pickup_location": "Milano",
+        "delivery_location": "Roma",
+        "weight": 5.5,
+        "service_type": "Express",
+    },
+    {
+        "pickup_location": "Atlantide",  # città non valida
+        "delivery_location": "Napoli",
+        "weight": 12.0,
+        "service_type": "Premium",
+    },
+    {
+        "pickup_location": "Milano",
+        "delivery_location": "Roma",
+        "weight": 5.5,
+        "service_type": "Express",
+    },
+    {
+        "pickup_location": "Atlantide",  # città non valida
+        "delivery_location": "Napoli",
+        "weight": 12.0,
+        "service_type": "Premium",
+    },
+    {
+        "pickup_location": "Milano",
+        "delivery_location": "Roma",
+        "weight": 5.5,
+        "service_type": "Express",
+    },
+    {
+        "pickup_location": "Atlantide",  # città non valida
+        "delivery_location": "Napoli",
+        "weight": 12.0,
+        "service_type": "Premium",
+    },
+    {
+        "pickup_location": "Milano",
+        "delivery_location": "Roma",
+        "weight": 5.5,
+        "service_type": "Express",
+    },
+    {
+        "pickup_location": "Atlantide",  # città non valida
+        "delivery_location": "Napoli",
+        "weight": 12.0,
+        "service_type": "Premium",
+    },
+    {
+        "pickup_location": "Milano",
+        "delivery_location": "Roma",
+        "weight": 5.5,
+        "service_type": "Express",
+    },
+    {
+        "pickup_location": "Atlantide",  # città non valida
+        "delivery_location": "Napoli",
+        "weight": 12.0,
+        "service_type": "Premium",
+    },
+    {
+        "pickup_location": "Milano",
+        "delivery_location": "Roma",
+        "weight": 5.5,
+        "service_type": "Express",
+    },
+    {
+        "pickup_location": "Atlantide",  # città non valida
+        "delivery_location": "Napoli",
+        "weight": 12.0,
+        "service_type": "Premium",
+    },
+]
+
 INVALID_PAYLOAD = {
     "pickup_location": "Milano",
     "delivery_location": "Roma",
@@ -44,7 +119,33 @@ INVALID_PAYLOAD = {
     "service_type": "Express",
 }
  
+INVALID_CITY_PAYLOAD = {
+    "pickup_location": "Milano",
+    "delivery_location": "Atlantide",
+    "weight": "5.0",
+    "service_type": "Express",
+}
  
+INVALID_SERVICE_TYPE_PAYLOAD = {
+    "pickup_location": "Milano",
+    "delivery_location": "Roma",
+    "weight": "8.5",
+    "service_type": "SuperExpress",
+}
+
+MISSING_FIELD_PAYLOAD = {
+    "pickup_location": "Milano",
+    "weight": 5.5,
+    "service_type": "Express",
+}
+ 
+NEGATIVE_WEIGHT_PAYLOAD = {
+    "pickup_location": "Milano",
+    "delivery_location": "Roma",
+    "weight": -3.0,
+    "service_type": "Express",
+}
+
 def test_root():
     r = requests.get(f"{BASE_URL}/")
     assert r.status_code == 200
@@ -96,7 +197,41 @@ def test_predict_invalid_payload():
     body = r.json()
     print("predict con payload invalido ->", body)
  
+def test_predict_invalid_city_payload():
+    r = requests.post(f"{BASE_URL}/predict", json=INVALID_CITY_PAYLOAD)
+    # ci si aspetta una gestione controllata dell'errore, non un crash del server
+    assert r.status_code in (200, 400, 422, 500)
+    body = r.json()
+    print("predict con payload invalido ->", body)
  
+def test_predict_invalid_service_type_payload():
+    r = requests.post(f"{BASE_URL}/predict", json=INVALID_SERVICE_TYPE_PAYLOAD)
+    # ci si aspetta una gestione controllata dell'errore, non un crash del server
+    assert r.status_code in (200, 400, 422, 500)
+    body = r.json()
+    print("predict con payload invalido ->", body)
+ 
+def test_predict_missing_field_payload():
+    r = requests.post(f"{BASE_URL}/predict", json=MISSING_FIELD_PAYLOAD)
+    # ci si aspetta una gestione controllata dell'errore, non un crash del server
+    assert r.status_code in (200, 400, 422, 500)
+    body = r.json()
+    print("predict con payload mancante ->", body)
+    
+def test_predict_negative_weight_payload():
+    r = requests.post(f"{BASE_URL}/predict", json=NEGATIVE_WEIGHT_PAYLOAD)
+    # ci si aspetta una gestione controllata dell'errore, non un crash del server
+    assert r.status_code in (200, 400, 422, 500)
+    body = r.json()
+    print("predict con payload peso negativo ->", body)
+    
+def test_predict_invalid_batch_payload():
+    r = requests.post(f"{BASE_URL}/predict/batch", json=INVALID_BATCH_PAYLOAD)
+    # ci si aspetta una gestione controllata dell'errore, non un crash del server
+    assert r.status_code in (200, 400, 422, 500, 413)
+    body = r.json()
+    print("predict/batch con payload invalido ->", body)
+    
 def test_predict_empty_body():
     r = requests.post(f"{BASE_URL}/predict", json={})
     assert r.status_code in (200, 400, 422, 500)
