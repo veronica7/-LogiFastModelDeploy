@@ -1,7 +1,5 @@
 # LogiFast Delivery Time Prediction API
 
-> **Anteprima non ancora applicata alla repository.** Questa versione descrive lo stato finale atteso dopo la correzione dell’API e dei test. Prima del merge deve essere confermata l’unità del target originale. Gli esempi seguenti assumono **ore**, perché l’artefatto produce valori compresi circa tra 40 e 58; il file Pickle, tuttavia, non contiene un metadato che permetta di dimostrarlo.
-
 API REST Flask per esporre un modello di Machine Learning che stima il tempo di consegna di una spedizione LogiFast.
 
 ## Funzionalità
