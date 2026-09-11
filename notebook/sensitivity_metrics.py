@@ -27,7 +27,7 @@ print("Step della pipeline:")
 for name, step in model.steps:
     print(f"  - {name}: {type(step).__name__}")
  
-print("\\nColonne attese in input (feature_names_in_):")
+print("Colonne attese in input (feature_names_in_):")
 print(list(model.feature_names_in_))
 
 """
@@ -72,7 +72,7 @@ summary = pd.DataFrame({
         len(feature_names_out),
     ],
 })
-summary
+print(summary)
 
 # 2. Coefficienti della regressione: il finding su `weight`
 coefs = pd.Series(regressor.coef_, index=feature_names_out)
@@ -183,7 +183,8 @@ metrics_df = pd.DataFrame(
         ],
     }
 )
-metrics_df
+
+print(metrics_df) 
 
 residuals = y_true - y_pred
  
