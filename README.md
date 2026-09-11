@@ -25,7 +25,6 @@ Il servizio carica l’artefatto `model/delivery.pkl` all’avvio ed espone pred
 ├── tests/
 │   └── test_api.py
 ├── requirements.txt
-├── requirements-dev.txt
 ├── Dockerfile
 ├── .dockerignore
 └── README.md
