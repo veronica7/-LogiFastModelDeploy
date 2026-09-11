@@ -172,16 +172,16 @@ Il valore mostrato è soltanto un esempio. Lo score e l’intervallo devono esse
 
 ### Interpretazione dell’affidabilità
 
-Il notebook calcola i residui su un dataset di calibrazione espresso nella stessa unità dell’output del modello. La versione dimostrativa utilizza il 95° percentile dell’errore assoluto, indicato con `q95_abs_residual`.
+Il notebook calcola i residui su un dataset di calibrazione espresso nella stessa unità dell’output del modello. La versione dimostrativa utilizza il 95° percentile dell’errore assoluto, indicato con `absolute_residual_q95`.
 
 ```text
-margin = q95_abs_residual
-lower = max(0, prediction - margin)
-upper = prediction + margin
-reliability_score = 1 / (1 + margin / max(abs(prediction), epsilon))
+lower = max(0.0,prediction + calibration["residual_q_lower"],)
+upper = max(lower,prediction + calibration["residual_q_upper"],)
+margin = calibration["absolute_residual_q95"]
+reliability_score = 1.0 / (1.0 + margin / max(abs(prediction), 1e-9))
 ```
 
-Lo score è compreso tra zero e uno. Un intervallo ampio rispetto alla predizione produce uno score più basso. Questa è una misura euristica di supporto, non una probabilità di correttezza. Poiché la calibrazione corrente usa un target sintetico, la risposta deve dichiarare `calibration_source: "synthetic_demo"`. Lo score non può essere presentato come affidabilità reale del modello finché non sono disponibili tempi di consegna osservati.
+Lo score è compreso tra zero e uno. Un intervallo ampio rispetto alla predizione produce uno score più basso. Questa è una misura euristica di supporto, non una probabilità di correttezza. Poiché la calibrazione corrente usa un target sintetico. Lo score non può essere presentato come affidabilità reale del modello finché non sono disponibili tempi di consegna osservati.
 
 ### `POST /predict/batch`
 
@@ -208,41 +208,34 @@ Il body deve essere un array JSON. Ogni elemento viene validato e processato ind
 
 ```json
 {
-  "predictions": [
-    {
-      "index": 0,
-      "status": "success",
-      "prediction": {
-        "estimated_delivery_time": 43.05,
-        "unit": "hours",
-        "reliability_score": 0.48,
-        "confidence_interval": {
-          "lower": 0.0,
-          "upper": 90.02,
-          "level": 0.95
+    "predictions": [
+        {
+            "prediction": {
+                "confidence_interval": [
+                    136.5,
+                    1105.02
+                ],
+                "estimated_delivery_time": 43.05,
+                "reliability_score": 0.042,
+                "unit": "minutes"
+            },
+            "status": "success"
         },
-        "calibration_source": "synthetic_demo"
-      }
-    },
-    {
-      "index": 1,
-      "status": "success",
-      "prediction": {
-        "estimated_delivery_time": 50.22,
-        "unit": "hours",
-        "reliability_score": 0.52,
-        "confidence_interval": {
-          "lower": 3.25,
-          "upper": 97.19,
-          "level": 0.95
-        },
-        "calibration_source": "synthetic_demo"
-      }
-    }
-  ],
-  "status": "success",
-  "model_version": "1.0.0",
-  "timestamp": "2026-09-11T14:30:00+00:00"
+        {
+            "prediction": {
+                "confidence_interval": [
+                    143.67,
+                    1112.19
+                ],
+                "estimated_delivery_time": 50.22,
+                "reliability_score": 0.048,
+                "unit": "minutes"
+            },
+            "status": "success"
+        }
+    ],
+    "status": "success",
+    "timestamp": "2026-09-11T16:24:27.786949+00:00"
 }
 ```
 
@@ -256,16 +249,19 @@ Un payload non valido restituisce sempre JSON, mai una pagina HTML.
 
 ```json
 {
-  "status": "error",
-  "error": "validation_error",
-  "details": [
-    {
-      "field": "pickup_location",
-      "message": "Città non riconosciuta: Atlantide",
-      "type": "value_error"
-    }
-  ],
-  "timestamp": "2026-09-11T14:30:00+00:00"
+    "details": [
+        {
+            "input": "Atlantide",
+            "loc": [
+                "pickup_location"
+            ],
+            "msg": "Value error, Città non riconosciuta: Atlantide",
+            "type": "value_error"
+        }
+    ],
+    "error": "validation_error",
+    "status": "error",
+    "timestamp": "2026-09-11T16:25:27.994520+00:00"
 }
 ```
 
@@ -278,7 +274,7 @@ Un payload non valido restituisce sempre JSON, mai una pagina HTML.
 
 ## Esplorazione e validazione
 
-Il notebook `notebook/sensitivity_metrics.ipynb` documenta:
+Il notebook `notebook/sensitivity_metrics.py` documenta:
 
 1. struttura della pipeline e feature effettivamente usate;
 2. categorie accettate dal `OneHotEncoder`;
@@ -290,34 +286,20 @@ Il notebook `notebook/sensitivity_metrics.ipynb` documenta:
 Esecuzione:
 
 ```bash
-pip install -r requirements-dev.txt
-jupyter notebook notebook/sensitivity_metrics.ipynb
+python notebook/sensitivity_metrics.py
 ```
 
 Le metriche sul dataset sintetico non misurano la performance reale. Il dataset non proviene dalla distribuzione di training e non fornisce una ground truth osservata.
 
 ## Test
 
-I test devono avviare l’app tramite il test client Flask oppure una fixture dedicata; non devono dipendere da un server avviato manualmente.
+I test prevedono l'avvio del server manualmente (python main.py  in un terminale). In un nuovo terminale si esegue:
 
 ```bash
-pip install -r requirements-dev.txt
-pytest -q
+pytest tests/test_api.py
 ```
 
-La suite copre endpoint validi, JSON malformato, body vuoto, campi mancanti, peso negativo, città e servizio sconosciuti, batch vuoto, batch troppo grande e batch con record misti. Le asserzioni richiedono codici esatti: un test non deve considerare contemporaneamente accettabili `200`, `400`, `422` e `500`.
-
-## Versionamento e tracciabilità
-
-| Elemento | Strategia |
-|---|---|
-| API | Semantic Versioning e tag Git |
-| Modello | Versione separata e SHA-256 dell’artefatto |
-| Dataset | Versione, SHA-256, numero di righe, schema e data di generazione |
-| Training | Versione di Python e librerie, feature, algoritmo, commit, dati e metriche |
-| Calibrazione | Metodo, livello nominale, unità, dataset, hash e data di calcolo |
-
-I metadati devono essere salvati in file versionati, per esempio `model/model_metadata.json` e `model/calibration.json`, e restituiti in forma sintetica da `/model/info`.
+La suite copre endpoint validi, JSON malformato, body vuoto, campi mancanti, peso negativo, città e servizio sconosciuti, batch troppo grande e batch con record misti. 
 
 ## Limiti noti
 
@@ -325,8 +307,3 @@ L’artefatto non include il dataset originale, il target osservato, l’unità 
 
 Il modello ignora `pickup_datetime`. Il coefficiente del peso è leggermente negativo. Entrambi i comportamenti sono stati verificati e devono essere considerati prima di un utilizzo operativo.
 
-## Riferimenti
-
-[1]: https://github.com/veronica7/-LogiFastModelDeploy "Repository GitHub LogiFastModelDeploy"
-[2]: https://docs.pydantic.dev/latest/errors/errors/ "Pydantic: Error Handling"
-[3]: https://flask.palletsprojects.com/en/stable/errorhandling/ "Flask: Handling Application Errors"
