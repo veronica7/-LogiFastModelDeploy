@@ -21,7 +21,7 @@ Il servizio carica l’artefatto `model/delivery.pkl` all’avvio ed espone pred
 ├── data/
 │   └── synthetic_delivery_dataset.csv
 ├── notebook/
-│   └── sensitivity_metrics.ipynb
+│   └── sensitivity_metrics.py
 ├── tests/
 │   └── test_api.py
 ├── requirements.txt
