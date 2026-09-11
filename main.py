@@ -1,4 +1,5 @@
 from DTO import PredictionRequest, PredictionOutput
+from pydantic import ValidationError
 from flask import Flask, jsonify, request
 import datetime
 import numpy as np
@@ -21,6 +22,10 @@ with open(path_model, "rb") as f:
     log.info("Modello caricato correttamente da %s", path_model)
 
 app = Flask(__name__)
+
+@app.errorhandler(ValidationError)
+def handle_validation_error(e):
+    return jsonify({"status": "error", "errors": e.errors()}), 422
 
 @app.route("/", methods=["GET"])
 def home():
@@ -91,27 +96,26 @@ def predict():
 def predict_batch():
     data = request.get_json()  # lista di dict
     predictions = []
-    for item_param in data:
-        request_param = PredictionRequest(pickuplocation=item_param.get("pickup_location"),
-                deliverylocation=item_param.get("delivery_location"),
-                weight=item_param.get("weight"),
-                servicetype=item_param.get("service_type"),)
-        
-        current_record = pd.DataFrame([{
-            "pickup_location": request_param.pickuplocation,
-            "delivery_location": request_param.deliverylocation,
-            "weight": request_param.weight,
-            "service_type": request_param.servicetype
-        }])
+    for item_param in data: 
         try:
+            request_param = PredictionRequest(pickuplocation=item_param.get("pickup_location"),
+                    deliverylocation=item_param.get("delivery_location"),
+                    weight=item_param.get("weight"),
+                    servicetype=item_param.get("service_type"),)
             
+            current_record = pd.DataFrame([{
+                "pickup_location": request_param.pickuplocation,
+                "delivery_location": request_param.deliverylocation,
+                "weight": request_param.weight,
+                "service_type": request_param.servicetype
+            }])
+       
             prediction = model.predict(current_record)[0]
             predictions.append({
-                "prediction": PredictionOutput(estimated_delivery_time=float(prediction)).model_dump(),
+                "prediction": PredictionOutput(estimated_delivery_time=float(prediction), unit="minutes", reliability_score=1, confidence_interval=(0, 0)).model_dump(),
                 "status": "success"
             })
             log.info("Predizione effettuata per il record: %s", item_param)
-            status = "success"
         except Exception as e:
             log.error("Errore durante la predizione per il record %s: %s", item_param, str(e))
             status = "error"
