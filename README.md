@@ -16,9 +16,9 @@ Il servizio carica l’artefatto `model/delivery.pkl` all’avvio ed espone pred
 ├── DTO.py
 ├── model/
 │   ├── delivery.pkl
-│   ├── model_metadata.json
 │   └── calibration.json
 ├── data/
+|   ├── calibration_residuals.csv
 │   └── synthetic_delivery_dataset.csv
 ├── notebook/
 │   └── sensitivity_metrics.py
