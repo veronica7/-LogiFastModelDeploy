@@ -10,7 +10,9 @@ import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
- 
+from pathlib import Path
+import json
+
 MODEL_PATH = "./model/delivery.pkl"
 DATA_PATH = "./data/synthetic_delivery_dataset.csv"
  
@@ -188,6 +190,38 @@ print(metrics_df)
 
 residuals = y_true - y_pred
  
+## mi servono per calcolare l'intervallo di confidenza della predizione, come esposto in `/predict`:
+absolute_residuals = np.abs(residuals)
+
+alpha = 0.05
+residual_q_lower = float(np.quantile(residuals, alpha / 2))
+residual_q_upper = float(np.quantile(residuals, 1 - alpha / 2))
+absolute_residual_q95 = float(np.quantile(absolute_residuals, 0.95))
+pd.DataFrame({
+    "actual_value": y_true,
+    "predicted_value": y_pred,
+    "residual": residuals,
+    "absolute_residual": absolute_residuals,
+}).to_csv("data/calibration_residuals.csv", index=False)
+ 
+calibration = {
+    "method": "empirical_residual_quantiles",
+    "confidence_level": 0.95,
+    "residual_definition": "actual_minus_prediction",
+    "residual_q_lower": residual_q_lower,
+    "residual_q_upper": residual_q_upper,
+    "absolute_residual_q95": absolute_residual_q95,
+    "output_unit": "minutes",  # oppure hours, dopo conferma
+    "source": "synthetic_demo",
+    "sample_size": len(residuals),
+}
+
+Path("model/calibration.json").write_text(
+    json.dumps(calibration, indent=2),
+    encoding="utf-8",
+)
+##############################
+
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
  
 axes[0].scatter(y_pred, y_true, alpha=0.3, s=10)

@@ -7,18 +7,20 @@ VALID_CITIES = {"Ancona","Bari","Bologna","Cagliari","Catania","Firenze","Genova
 VALID_SERVICE_TYPES = {"Express", "Premium"}
 
 class PredictionRequest(BaseModel):
-    pickuplocation: str = Field(..., description="Indirizzo di ritiro del pacco.")
-    deliverylocation: str = Field(..., description="Indirizzo di consegna del pacco.")
+    pickup_location: str = Field(..., description="Indirizzo di ritiro del pacco.")
+    delivery_location: str = Field(..., description="Indirizzo di consegna del pacco.")
     weight: float = Field(..., description="Peso del pacco in chilogrammi.")
-    servicetype: str = Field(..., description="Tipo di servizio richiesto (es. standard, express, same-day).")
+    service_type: str = Field(..., description="Tipo di servizio richiesto (es. standard, express, same-day).")
     
-    @field_validator("pickuplocation", "deliverylocation")
+    @field_validator("pickup_location", "delivery_location")
+    @classmethod
     def check_city(cls, v):
         if v not in VALID_CITIES:
             raise ValueError(f"Città non riconosciuta: {v}")
         return v
 
-    @field_validator("servicetype")
+    @field_validator("service_type")
+    @classmethod
     def check_service(cls, v):
         if v not in VALID_SERVICE_TYPES:
             raise ValueError(f"Tipo di servizio non valido: {v}")

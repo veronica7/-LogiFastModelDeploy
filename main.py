@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import logging
 import pickle
+import json
 
 logging.basicConfig(
     level=logging.INFO, 
@@ -16,12 +17,48 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 path_model = "model/delivery.pkl"
+CALIBRATION_PATH = "model/calibration.json"
 
 with open(path_model, "rb") as f:
     model = pickle.load(f)
     log.info("Modello caricato correttamente da %s", path_model)
 
+#carico il file di calibrazione per la stima dell'intervallo di confidenza
+with open(CALIBRATION_PATH, encoding="utf-8") as f:
+    calibration = json.load(f)
+
 app = Flask(__name__)
+
+
+def build_prediction_output(raw_prediction):
+    prediction = float(raw_prediction)
+
+    lower = max(
+        0.0,
+        prediction + calibration["residual_q_lower"],
+    )
+    upper = max(
+        lower,
+        prediction + calibration["residual_q_upper"],
+    )
+
+    margin = calibration["absolute_residual_q95"]
+
+    reliability_score = 1.0 / (
+        1.0 + margin / max(abs(prediction), 1e-9)
+    )
+
+    return PredictionOutput(
+        estimated_delivery_time=round(prediction, 2),
+        unit=calibration["output_unit"],
+        reliability_score=round(reliability_score, 3),
+        confidence_interval=(
+            round(lower, 2),
+            round(upper, 2),
+        ),
+        calibration_source=calibration["source"],
+    )
+
 
 @app.errorhandler(ValidationError)
 def handle_validation_error(e):
@@ -62,67 +99,182 @@ def predict():
     params = request.get_json()
     if params is None:
         log.error("Nessun parametro ricevuto nella richiesta.")
-        return jsonify({"error": "Richiesta JSON mancante o malformata"}), 400
+        return jsonify({"status": "error",
+            "error": "Richiesta JSON mancante o malformata",
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()}), 400
+    if not isinstance(params, dict):
+        return jsonify({
+            "status": "error",
+            "error": "Il body deve essere un oggetto JSON",
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+        }), 422
+    
     log.info("Parametri ricevuti: %s", params)
 
-    request_param = PredictionRequest(
-        pickuplocation=params.get("pickup_location"),
-        deliverylocation=params.get("delivery_location"),
-        weight=params.get("weight"),
-        servicetype=params.get("service_type"),
-    )
+    try:
+        request_param = PredictionRequest.model_validate(params)
+    except ValidationError as e:
+        log.warning("Errore di validazione: %s", e)
 
+        return jsonify({
+            "status": "error",
+            "error": "validation_error",
+            "details": e.errors(
+                include_context=False,
+                include_url=False
+            ),
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+        }), 422
+        
+        
     current_record = pd.DataFrame([{
-        "pickup_location": request_param.pickuplocation,
-        "delivery_location": request_param.deliverylocation,
+        "pickup_location": request_param.pickup_location,
+        "delivery_location": request_param.delivery_location,
         "weight": request_param.weight,
-        "service_type": request_param.servicetype
+        "service_type": request_param.service_type
     }])
 
     try:
         
         prediction = model.predict(current_record)[0]
+        output = build_prediction_output(prediction)
         log.info("Predizione effettuata per il record: %s", current_record)
-        status = "success"
+        
     except Exception as e:
         log.error("Errore durante la predizione per il record %s: %s", current_record, str(e))
-        status = "error"
-        return jsonify({"error": str(e), "status": status, "timestamp": datetime.datetime.now().isoformat()})
+        return jsonify({
+            "status": "error",
+            "error": "prediction_error",
+            "message": "Errore interno durante la predizione",
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+        }), 500
+    return jsonify({
+        "prediction": output.model_dump(),
+        "status": "success",
+        "timestamp": datetime.datetime.now(
+            datetime.timezone.utc
+        ).isoformat()
+    }), 200
+   
 
-    output = PredictionOutput(estimated_delivery_time=prediction)
-    return jsonify({"prediction": output.model_dump(), "status": status, "timestamp": datetime.datetime.now().isoformat()}) 
-
+MAX_BATCH_SIZE = 10
 @app.route("/predict/batch", methods=["POST"])
 def predict_batch():
     data = request.get_json()  # lista di dict
+    if data is None:
+        return jsonify({
+            "status": "error",
+            "error": "Richiesta JSON mancante o malformata",
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+        }), 400
+
+    if not isinstance(data, list):
+        return jsonify({
+            "status": "error",
+            "error": "Il body deve essere un array JSON",
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+        }), 422
+
+    if len(data) == 0:
+        return jsonify({
+            "status": "error",
+            "error": "Il batch non può essere vuoto",
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+        }), 422
+
+    if len(data) > MAX_BATCH_SIZE:
+        return jsonify({
+            "status": "error",
+            "error": "batch_too_large",
+            "max_batch_size": MAX_BATCH_SIZE,
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+        }), 413
+        
     predictions = []
-    for item_param in data: 
-        try:
-            request_param = PredictionRequest(pickuplocation=item_param.get("pickup_location"),
-                    deliverylocation=item_param.get("delivery_location"),
-                    weight=item_param.get("weight"),
-                    servicetype=item_param.get("service_type"),)
-            
-            current_record = pd.DataFrame([{
-                "pickup_location": request_param.pickuplocation,
-                "delivery_location": request_param.deliverylocation,
-                "weight": request_param.weight,
-                "service_type": request_param.servicetype
-            }])
-       
-            prediction = model.predict(current_record)[0]
+    for index, item_param in enumerate(data): 
+        if not isinstance(item_param, dict):
             predictions.append({
-                "prediction": PredictionOutput(estimated_delivery_time=float(prediction), unit="minutes", reliability_score=1, confidence_interval=(0, 0)).model_dump(),
+                "index": index,
+                "status": "error",
+                "error": "Ogni elemento deve essere un oggetto JSON"
+            })
+            continue
+        try:
+            request_param = PredictionRequest.model_validate(item_param)
+        except ValidationError as e:
+            log.warning( "Errore di validazione nel record %s: %s", index, e)
+
+            predictions.append({
+                "index": index,
+                "status": "error",
+                "error": "validation_error",
+                "details": e.errors(
+                    include_context=False,
+                    include_url=False
+                )
+            })
+            continue   
+            
+        current_record = pd.DataFrame([{
+            "pickup_location": request_param.pickup_location,
+            "delivery_location": request_param.delivery_location,
+            "weight": request_param.weight,
+            "service_type": request_param.service_type
+        }])
+
+        try:
+            prediction = model.predict(current_record)[0]
+            output = build_prediction_output(prediction)
+            predictions.append({
+                "prediction": output.model_dump(),
                 "status": "success"
             })
             log.info("Predizione effettuata per il record: %s", item_param)
-        except Exception as e:
-            log.error("Errore durante la predizione per il record %s: %s", item_param, str(e))
-            status = "error"
-            predictions.append({"error": str(e)})
+        except Exception:
+            log.exception("Errore durante la predizione per il record %s: %s", index)
+            predictions.append({
+                "index": index,
+                "status": "error",
+                "error": "prediction_error",
+                "message": "Errore interno durante la predizione"
+            })
+    if all(
+        item["status"] == "success"
+        for item in predictions
+    ):
+        overall_status = "success"
+    elif any(
+        item["status"] == "success"
+        for item in predictions
+    ):
+        overall_status = "partial_success"
+    else:
+        overall_status = "error"
 
-    return jsonify({"predictions": predictions, "status": status, "timestamp": datetime.datetime.now().isoformat()})
+    return jsonify({
+        "predictions": predictions,
+        "status": overall_status,
+        "timestamp": datetime.datetime.now(
+            datetime.timezone.utc
+        ).isoformat()
+    }), 200
+    
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
-    

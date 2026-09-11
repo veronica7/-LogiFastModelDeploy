@@ -1,0 +1,11 @@
+{
+  "method": "empirical_residual_quantiles",
+  "confidence_level": 0.95,
+  "residual_definition": "actual_minus_prediction",
+  "residual_q_lower": 93.44824999999999,
+  "residual_q_upper": 1061.97025,
+  "absolute_residual_q95": 987.1750000000001,
+  "output_unit": "minutes",
+  "source": "synthetic_demo",
+  "sample_size": 3000
+}
