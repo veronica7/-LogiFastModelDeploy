@@ -150,17 +150,14 @@ curl --fail-with-body \
 {
   "prediction": {
     "estimated_delivery_time": 43.05,
-    "unit": "hours",
+    "unit": "minutes",
     "reliability_score": 0.48,
-    "confidence_interval": {
-      "lower": 0.0,
-      "upper": 90.02,
-      "level": 0.95
-    },
-    "calibration_source": "synthetic_demo"
+    "confidence_interval": [
+            137.51,
+            1106.03
+        ],
   },
   "status": "success",
-  "model_version": "1.0.0",
   "timestamp": "2026-09-11T14:30:00+00:00"
 }
 ```
