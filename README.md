@@ -98,20 +98,26 @@ Espone metadati verificabili su API, modello, dati di calibrazione e dipendenze.
 
 ```json
 {
-  "api_version": "1.1.0",
-  "model_version": "1.0.0",
-  "model_sha256": "cb29574fa8836c9d3aa62f17760d300999c5bdbb9184b006041f95d6bbfbe260",
-  "model_type": "Pipeline",
-  "model_features": [
-    "pickup_location",
-    "delivery_location",
-    "weight",
-    "service_type"
-  ],
-  "sklearn_version": "1.6.1",
-  "output_unit": "hours",
-  "calibration_source": "synthetic_demo",
-  "calibration_dataset_sha256": "bcd8f3532d709ee83f4f42c5b62b6bca050e6f0c5577dddeb9d1ec8992f82ad8"
+    "model_features": [
+        "pickup_location",
+        "delivery_location",
+        "weight",
+        "service_type"
+    ],
+    "model_steps": [
+        {
+            "class_name": "ColumnTransformer",
+            "step_name": "preprocess"
+        },
+        {
+            "class_name": "LinearRegression",
+            "step_name": "regressor"
+        }
+    ],
+    "model_type": "Pipeline",
+    "model_version": "1.0.0",
+    "sklearn_version": "1.6.1",
+    "trained_on": "2026-01-15"
 }
 ```
 
